@@ -1,26 +1,22 @@
-uint8_t currentValue = 0;
 
-//Use pins 10, 11, 12 & 13 of Arduino
-//Connect to pins A, B, C & D of your SN74141 Nixie driver chip
 #define bttn 2
-#define A 3
-#define B 4
-#define C 5
-#define D 6
-#define one 7
-#define other 8
+#define A 4
+#define B 5
+#define C 6
+#define D 7
+#define one 3
+#define other 1
 
-uint8_t sec;
-uint8_t secp;
-uint8_t tensec;
-uint8_t min;
-uint8_t minp;
-uint8_t tenmin;
-uint8_t hr;
-uint8_t hrp;
-uint8_t tenhr;
+uint8_t sec = 30;
+uint8_t min = 25;
+uint8_t hr = 14;
+uint8_t day = 12;
+uint8_t month = 3;
+uint8_t year = 20;
+uint8_t minor = 0;
+uint8_t major = 0;
 
-long RFRSH;
+long RFRSH = millis;
 
 bool ena = true;
 bool oneother = true;
@@ -29,6 +25,7 @@ bool oneother = true;
 
 void state() {
   RFRSH = millis();
+  ena = true;
 }
 
 void setup() {
@@ -74,57 +71,176 @@ void setup() {
 sei();//allow interrupts
 }
 
-void nixieWrite (uint8_t a, uint8_t b, uint8_t c, uint8_t d, uint8_t value){
-  digitalWrite(d, (value & 0x08) >> 3);
-  digitalWrite(c, (value & 0x04) >> 2);
-  digitalWrite(b, (value & 0x02) >> 1);
-  digitalWrite(a, value & 0x01);
-}
+//______________________________________________________________________
 
 ISR(TIMER1_COMPA_vect){//timer1 interrupt 1Hz
   sec++;
 }
 
-ISR(TIMER0_COMPA_vect){//timer1 interrupt 2000Hz
+//______________________________________________________________________
+
+ISR(TIMER0_COMPA_vect){//timer1 interrupt 500Hz
   if (ena){
     !oneother;
     if (oneother){
-      digitalWrite(one, HIGH);
-      digitalWrite(other,LOW);
+     PORTD = PORTD & 0b00000101;
+     PORTD = PORTD | 0b00001000;
+     PORTD = PORTD | minor;
     }
     else {
-      digitalWrite(one, LOW);
-      digitalWrite(other,HIGH);
+     PORTD = PORTD & 0b00000101;
+     PORTD = PORTD | 0b00000010;
+     PORTD = PORTD | minor;
     }
   }
   else {
-    digitalWrite(one, LOW);
-    digitalWrite(other,LOW);
+     PORTD = PORTD & 0b00000101;
   }
 }
 
+//______________________________________________________________________
+
 void loop() {
+  
+// do some computing for time management, like 60 secs in minute, 60 of them in hour, 24 hr. cycle etc.
+  
   if (sec >= 60){
     sec = 0;
     min++;
   }
-   if (min >= 60){
+  
+  if (min >= 60){
     min = 0;
     hr++;
   }
+  
   if (hr >= 24){
     hr = 0;
+    day++;
   }
 
-  secp = sec % 10;
-  tensec = (int) sec / 10;
-  minp = min % 10;
-  tenmin = (int) minp / 10;
-  hrp = hr % 10;
-  tenhr = (int) hrp / 10;
-  if (ena){
-    if (RFRSH <= 1000){
-      nixieWrite(A, B, C, D, secp);
+  switch (month){
+  
+  case 1:
+    if (day == 32){
+      day= 1;
+      month++;
     }
+  break;
+  
+  case 2:
+    if ((year % 4) == 0){
+      if (day == 30){
+        day= 1;
+        month++;
+      }
+    }
+    else{
+      if (day == 29){
+        day= 1;
+        month++;
+      }
+    }
+  break;
+
+  case 3:
+    if (day == 32){
+      day= 1;
+      month++;
+    }
+  break;
+
+  case 4:
+    if (day == 31){
+      day= 1;
+      month++;
+    }
+  break;
+  
+  case 5:
+    if (day == 32){
+      day= 1;
+      month++;
+    }
+  break;
+  
+  case 6:
+    if (day == 31){
+      day= 1;
+      month++;
+    }
+  break;
+
+  case 7:
+    if (day == 32){
+      day= 1;
+      month++;
+    }
+  break;
+
+  case 8:
+    if (day == 32){
+      day= 1;
+      month++;
+    }
+  break;
+
+  case 9:
+    if (day == 31){
+      day= 1;
+      month++;
+    }
+  break;
+  
+  case 10:
+    if (day == 32){
+      day= 1;
+      month++;
+    }
+  break;
+
+  case 11:
+    if (day == 31){
+      day= 1;
+      month++;
+    }
+  break;
+
+  case 12:
+    if (day == 32){
+      day = 1;
+      month = 1;
+      year++;
+    }
+  break;
   }
+year %= 100;
+
+// separation of digit one and two, bitshifting them to the left. now take it back now ya'll
+
+  if ((millis() - RFRSH)<500){
+    minor = (sec % 10) << 4;
+    major = ((int) sec / 10) << 4;
+  }
+  if (500<=(millis() - RFRSH)<1000){
+    minor = (min % 10) << 4;
+    major = ((int) min / 10) << 4;
+  }
+  if (1000<=(millis() - RFRSH)<1500){
+    minor = (hr % 10) << 4;
+    major = ((int) hr / 10) << 4;
+  }
+  if (1500<=(millis() - RFRSH)<2000){
+    minor = (day % 10) << 4;
+    major = ((int) day / 10) << 4;
+  }
+  if (2000<=(millis() - RFRSH)<2500){
+    minor = (month % 10) << 4;
+    major = ((int) month / 10) << 4;
+  }
+  if (2500<=(millis() - RFRSH)<3000){
+    minor = (year % 10) << 4;
+    major = ((int) year / 10) << 4;
+  }
+  else ena = false;  
 }
