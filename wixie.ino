@@ -101,12 +101,14 @@ void setup() {
 
 //______________________________________________________________________
 //timer1 interrupt 1Hz
+
 ISR(TIMER1_COMPA_vect){
   sec++;
 }
 
 //______________________________________________________________________
 //timer1 interrupt 500Hz
+
 ISR(TIMER0_COMPA_vect){
   if (call && ena){
     !oneother;
@@ -146,7 +148,6 @@ void loop() {
   holder();
   
   if (lhold){
-    cli();//stop interrupts
     RFRSH = millis();
     for (uint8_t i = 0; i < 5; i++){
       while ((millis() - RFRSH)<=5000){
@@ -173,12 +174,11 @@ void loop() {
       manager();
       }
     }
-    sei();//allow interrupts
+  rtc.adjust(DateTime((year + 2000), month, day, hr, min, sec));
   }
 
-  //manages the battery, and does a check of whether whe battery isnt too far discharged
+  //manages the battery, and does a check of whether the battery isnt too far discharged
   battstate =  analogRead(battpin);
-
   batt = (int) (battstate * 5 * 100) / (4.25 * 1024);
   if (batt > 99) batt = 99;
   if (batt > 0) ena = true;
