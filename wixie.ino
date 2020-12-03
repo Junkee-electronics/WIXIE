@@ -17,6 +17,7 @@ uint8_t hr = 12;
 uint8_t day = 15;
 uint8_t month = 6;
 uint8_t year = 20;
+uint8_t cyclep = 24;
 uint8_t minor;
 uint8_t major;
 uint8_t batt;
@@ -33,6 +34,8 @@ bool hold = false;
 bool lhold = false;
 bool oneother = true;
 bool set = false;
+bool cycle = false;
+bool second = false;
 
 //______________________________________________________________________
 
@@ -196,26 +199,44 @@ void loop() {
   
   if (lhold){
     RFRSH = millis();
-    for (uint8_t i = 0; i < 5; i++){
+    for (uint8_t i = 0; i < 6; i++){
       while ((millis() - RFRSH)<=5000){
         switch (i){
           case 0:
+            TIMSK1 &= (0 << OCIE1A);
             adjuster(sec);
+            convert(sec);
           break;
           case 1:
+            TIMSK1 |= (1 << OCIE1A);
             adjuster(min);
+            convert(min);
           break;
           case 2:
             adjuster(hr);
+            convert(hr);
           break;
           case 3:
             adjuster(day);
+            convert(day);
           break;
           case 4:
             adjuster(month);
+            convert(month);
           break;
           case 5:
             adjuster(year);
+            convert(year);
+          break;
+//this grade A bullshit is just because of 12/24 hr cycle
+          case 6:
+            if (set){
+              cycle != cycle;
+              set = false;
+            }
+            if (cycle) cyclep = 12;
+            else cyclep = 24;
+          convert(cyclep);
           break;
         }
       manager();
@@ -270,8 +291,9 @@ void convert(uint8_t vale){
   major = ((int) vale / 10) << 4;
 }
 
-// do some computing for time management, like 60 secs in minute, 60 of them in hour, 24 hr. cycle etc.
+// do some computing for time management, like 60 secs in minute, 60 of them in hour, 12/24 hr. cycle etc.
 void manager(){  
+
   if (sec >= 60){
     sec = 0;
     min++;
@@ -282,9 +304,18 @@ void manager(){
     hr++;
   }
   
-  if (hr >= 24){
-    hr = 0;
-    day++;
+  if (cycle){
+    if ((hr >= 12)){
+      hr = 0;
+      second != second;
+      if (second) day++;
+    }
+  }
+  else {
+    if ((hr >= 24)){
+      hr = 0;
+      day++;
+    }
   }
 
   switch (month){
