@@ -1,4 +1,4 @@
-#include "RTClib.h"
+//#include "RTClib.h"
 
 #define bttn 2
 #define A 4
@@ -9,18 +9,17 @@
 #define other 1
 #define battpin A0
 
-RTC_DS1307 rtc;
+//RTC_DS1307 rtc;
 
-uint8_t sec;
-uint8_t min;
-uint8_t hr;
-uint8_t day;
-uint8_t month;
-uint8_t year;
-uint8_t minor = 0;
-uint8_t major = 0;
+uint8_t sec = 30;
+uint8_t min = 30;
+uint8_t hr = 12;
+uint8_t day = 15;
+uint8_t month = 6;
+uint8_t year = 20;
+uint8_t minor;
+uint8_t major;
 uint8_t batt;
-uint8_t desired;
 
 int unsigned battstate;
 
@@ -47,6 +46,9 @@ void state() {
 //______________________________________________________________________
 
 void setup() {
+
+  Serial.begin(9600);
+
   pinMode(A, OUTPUT);
   pinMode(B, OUTPUT);
   pinMode(C, OUTPUT);
@@ -55,9 +57,9 @@ void setup() {
   pinMode(other, OUTPUT);
   pinMode(bttn, INPUT_PULLUP);
 
-  rtc.begin();
-//stop interrupts
-  cli();
+//  rtc.begin();
+
+  cli();//stop interrupts
 
   attachInterrupt(digitalPinToInterrupt(bttn), state, FALLING);
 
@@ -87,6 +89,7 @@ void setup() {
   // enable timer compare interrupt
   TIMSK1 |= (1 << OCIE1A);
 
+/*
   DateTime now = rtc.now();
   sec = now.second();
   min = now.minute();
@@ -95,6 +98,7 @@ void setup() {
   month = now.month();
   year = now.year();
   trigger = millis();
+*/
 
   sei();//allow interrupts
 }
@@ -110,21 +114,25 @@ ISR(TIMER1_COMPA_vect){
 //timer1 interrupt 500Hz
 
 ISR(TIMER0_COMPA_vect){
-  if (call && ena){
-    !oneother;
+  if (call){
     if (oneother){
-     PORTD = PORTD & 0b00000101;
-     PORTD = PORTD | 0b00001000;
-     PORTD = PORTD | minor;
+      PORTD &= 0b00000111;
+      PORTB &= 0b11000000;
+      PORTB |= 0b00000001;
+      PORTD = PORTD | minor;
+      oneother = false;
     }
-    else {
-     PORTD = PORTD & 0b00000101;
-     PORTD = PORTD | 0b00000010;
-     PORTD = PORTD | minor;
+    else{
+      PORTD &= 0b00000101;
+      PORTB &= 0b11000000;
+      PORTB |= 0b00000010;
+      PORTD = PORTD | major;
+      oneother = true;
     }
   }
   else {
-     PORTD = PORTD & 0b00000101;
+     PORTD &= 0b00000111;
+     PORTB &= 0b11000000;
   }
 }
 
@@ -134,6 +142,7 @@ void loop() {
 //safety for if millis eventually overflows, the time will stay updated from the RTC in 10 hour intervals.
   if (millis() < trigger) trigger = millis();
 
+/*
   if ((millis() - trigger) > 36000000){
     DateTime now = rtc.now();
     sec = now.second();
@@ -144,6 +153,44 @@ void loop() {
     year = (now.year())-2000;
     trigger = millis();
   }
+*/
+
+/*
+  Serial.print("sec");
+  Serial.print(sec);
+  Serial.print("min");
+  Serial.print(min);
+  Serial.print("hr");
+  Serial.print(hr);
+  Serial.print("day");
+  Serial.print(day);
+  Serial.print("month");
+  Serial.print(month);
+  Serial.print("year");
+  Serial.print(year);
+  Serial.print("hold");
+  Serial.print(hold);
+  Serial.print("lhold");
+  Serial.print(lhold);
+  Serial.print("oneother");
+  Serial.print(oneother);
+  Serial.print("batt");
+  Serial.print(batt);
+  Serial.print("ena");
+  Serial.print(ena);
+  Serial.print("call");
+  Serial.print(call);
+  Serial.print("minor");
+  Serial.print(minor);
+  Serial.print("major");
+  Serial.print(major);
+  Serial.print("PORTD");
+  Serial.print(PORTD);
+  Serial.print("PORTB");
+  Serial.print(PORTB);
+  Serial.print("set");
+  Serial.println(set);
+*/
 
   holder();
   
@@ -174,31 +221,29 @@ void loop() {
       manager();
       }
     }
-  rtc.adjust(DateTime((year + 2000), month, day, hr, min, sec));
+//  rtc.adjust(DateTime((year + 2000), month, day, hr, min, sec));
   }
 
-  //manages the battery, and does a check of whether the battery isnt too far discharged
+  //reads the battery, converts the range 3v - 4.25v to value 0 - 99, and does a check of whether the battery isnt too far discharged (at 0 [3v])
   battstate =  analogRead(battpin);
-  batt = (int) (battstate * 5 * 100) / (4.25 * 1024);
+  batt = (int) ((((battstate * 5) / 1023)-3) * 80);
   if (batt > 99) batt = 99;
   if (batt > 0) ena = true;
   else ena = false;
 
 // separation of digit one and two, bitshifting them to the left. now take it back now ya'll
   if (hold){
-    minor = (batt % 10) << 4;
-    major = ((int) batt / 10) << 4;    
+    convert(batt);    
   }
 
   manager();
   if (ena){
-    if ((millis() - RFRSH)<500) desired = 0;
-    if (500<=(millis() - RFRSH)<1000) desired = 1;
-    if (1000<=(millis() - RFRSH)<1500) desired = 2;
-    if (1500<=(millis() - RFRSH)<2000) desired = 3;
-    if (2000<=(millis() - RFRSH)<2500) desired = 4;
-    if (2500<=(millis() - RFRSH)<3000) desired = 5;
-    convert();
+    if ((millis() - RFRSH)<500) convert(sec);
+    if (500<=(millis() - RFRSH)<1000) convert(min);
+    if (1000<=(millis() - RFRSH)<1500) convert(hr);
+    if (1500<=(millis() - RFRSH)<2000) convert(day);
+    if (2000<=(millis() - RFRSH)<2500) convert(month);
+    if (2500<=(millis() - RFRSH)<3000) convert(year);
   }
   else call = false;
 }
@@ -220,38 +265,9 @@ void holder(){
 }
 
 //converts double digits to single digits and splits them according to what should be displayed now
-void convert(){
-  switch (desired){
-    case 0:
-      minor = (sec % 10) << 4;
-      major = ((int) sec / 10) << 4;
-    break;
-
-    case 1:
-      minor = (min % 10) << 4;
-      major = ((int) min / 10) << 4;
-    break;
-
-    case 2:
-      minor = (hr % 10) << 4;
-      major = ((int) hr / 10) << 4;
-    break;
-
-    case 3:
-      minor = (day % 10) << 4;
-      major = ((int) day / 10) << 4;
-    break;
-
-    case 4:
-      minor = (month % 10) << 4;
-      major = ((int) month / 10) << 4;
-    break;
-
-    case 5:
-      minor = (year % 10) << 4;
-      major = ((int) year / 10) << 4;
-    break;
-  }
+void convert(uint8_t vale){
+  minor = (vale % 10) << 4;
+  major = ((int) vale / 10) << 4;
 }
 
 // do some computing for time management, like 60 secs in minute, 60 of them in hour, 24 hr. cycle etc.
