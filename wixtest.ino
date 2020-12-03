@@ -5,8 +5,8 @@
 #define B 5
 #define C 6
 #define D 7
-#define one 3
-#define other 1
+#define one 8
+#define other 9
 #define battpin A0
 
 //RTC_DS1307 rtc;
@@ -110,20 +110,23 @@ ISR(TIMER1_COMPA_vect){
 ISR(TIMER0_COMPA_vect){
   if (call){
     if (oneother){
-      PORTD &= 0b00000101;
-      PORTD |= 0b00001000;
-//     PORTD = PORTD | minor;
+      PORTD &= 0b00000111;
+      PORTB &= 0b11000000;
+      PORTB |= 0b00000001;
+      PORTD = PORTD | minor;
       oneother = false;
     }
-    else {
+    else{
       PORTD &= 0b00000101;
-      PORTD |= 0b00000010;
-//     PORTD = PORTD | major;
+      PORTB &= 0b11000000;
+      PORTB |= 0b00000010;
+      PORTD = PORTD | major;
       oneother = true;
     }
   }
   else {
-     PORTD = PORTD & 0b00000101;
+     PORTD &= 0b00000111;
+     PORTB &= 0b11000000;
   }
 }
 
@@ -131,6 +134,7 @@ ISR(TIMER0_COMPA_vect){
 
 void loop() {
 
+/*
   Serial.print("sec");
   Serial.print(sec);
   Serial.print("hold");
@@ -148,7 +152,12 @@ void loop() {
   Serial.print("minor");
   Serial.print(minor);
   Serial.print("major");
-  Serial.println(major);
+  Serial.print(major);
+  Serial.print("POTRD");
+  Serial.print(PORTD);
+  Serial.print("POTRB");
+  Serial.println(PORTB);
+*/
 
 //safety for if millis eventually overflows, the time will stay updated from the RTC in 10 hour intervals.
 //  if (millis() < trigger) trigger = millis();
@@ -244,8 +253,8 @@ void holder(){
 
 //converts double digits to single digits and splits them according to what should be displayed now
 void convert(uint8_t vale){
-  minor = ((vale % 10) << 4);
-  major = ((int) vale / 10) << 4;
+  minor = ((vale % 10)<<4);
+  major = (((int) vale / 10)<<4);
 }
 
 // do some computing for time management, like 60 sec in minute, 60 of them in hour, 24 hr. cycle etc.
