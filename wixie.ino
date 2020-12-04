@@ -5,8 +5,9 @@
 #define B 5
 #define C 6
 #define D 7
-#define one 3
-#define other 1
+#define one 8
+#define other 9
+#define buzzer 10
 #define battpin A0
 
 //RTC_DS1307 rtc;
@@ -18,6 +19,8 @@ uint8_t day = 15;
 uint8_t month = 6;
 uint8_t year = 20;
 uint8_t cyclep = 24;
+uint8_t repamin = 0;
+uint8_t repahr = 0;
 uint8_t minor;
 uint8_t major;
 uint8_t batt;
@@ -27,6 +30,8 @@ int unsigned battstate;
 long unsigned trigger;
 long unsigned RFRSH = 0;
 long unsigned holdtime = 0;
+long unsigned repatime;
+long unsigned buzz;
 
 bool ena = true;
 bool call = true;
@@ -35,7 +40,9 @@ bool lhold = false;
 bool oneother = true;
 bool set = false;
 bool cycle = false;
-bool second = false;
+bool pm = false;
+bool repaena = false;
+bool repapm = false;
 
 //______________________________________________________________________
 
@@ -58,6 +65,7 @@ void setup() {
   pinMode(D, OUTPUT);
   pinMode(one, OUTPUT);
   pinMode(other, OUTPUT);
+  pinMode(buzzer, OUTPUT);
   pinMode(bttn, INPUT_PULLUP);
 
 //  rtc.begin();
@@ -199,7 +207,7 @@ void loop() {
   
   if (lhold){
     RFRSH = millis();
-    for (uint8_t i = 0; i < 6; i++){
+    for (uint8_t i = 0; i < 9; i++){
       while ((millis() - RFRSH)<=5000){
         switch (i){
           case 0:
@@ -238,12 +246,32 @@ void loop() {
             else cyclep = 24;
           convert(cyclep);
           break;
+//setting for repeating alarm.
+          case 7:
+            adjuster(repamin);
+            convert(repamin);
+          break;
+          case 8:
+            adjuster(repahr);
+            if (repahr >= 12) repapm = true;
+            else repapm = false;
+            convert(repahr);
+          break;
+          case 9:
+            if (set){
+              repaena != repaena;
+              set = false;
+            }            
+            convert(repaena);
+          break;
         }
       manager();
       }
     }
 //  rtc.adjust(DateTime((year + 2000), month, day, hr, min, sec));
   }
+
+  alarm();
 
   //reads the battery, converts the range 3v - 4.25v to value 0 - 99, and does a check of whether the battery isnt too far discharged (at 0 [3v])
   battstate =  analogRead(battpin);
@@ -307,8 +335,8 @@ void manager(){
   if (cycle){
     if ((hr >= 12)){
       hr = 0;
-      second != second;
-      if (second) day++;
+      pm != pm;
+      if (pm) day++;
     }
   }
   else {
@@ -316,6 +344,14 @@ void manager(){
       hr = 0;
       day++;
     }
+  }
+
+  if (repamin >= 60){
+    repamin = 0;
+  }    
+
+  if ((repahr >= 24)){
+    repahr = 0;
   }
 
   switch (month){
@@ -423,4 +459,34 @@ void adjuster(uint8_t val){
     set = false;
   }
   if (hold || lhold)RFRSH = millis() - 5000;
+}
+
+void alarm(){
+  if (repaena){
+    if ((hr == repahr) && ((pm && repapm) || (!pm && !repapm))){
+      if (min == repamin){
+        repatime = millis();
+        TIMSK0 &= (0 << OCIE0A);
+        while (((millis() - repatime) < 120000) || !ena){
+          if (millis() < buzz){
+            repatime = millis();
+            buzz = millis();
+          }
+          if ((millis() - buzz) >= 1000){
+            tone(buzzer, 120, 500);
+            buzz = millis();
+          }
+        }
+        //this is done in case the tone() which uses internal interrupts chooses timer 0, which it will do, because i deactivated it just prior to the while().
+        //or maybe it wont since the mode is still set to CTC, IDK, i have came across this for the first time, better safe than be left with a stuck wristwatch.
+        TCCR0A = 0;// set entire TCCR0A register to 0
+        TCCR0B = 0;// same for TCCR0B
+        TCNT0  = 0;//initialize counter value to 0
+        OCR0A = 124;// = (16*10^6) / (500*64) - 1 (must be <256)
+        TCCR0A |= (1 << WGM01);
+        TCCR0B |= (1 << CS02);   
+        TIMSK0 |= (1 << OCIE0A);
+      }
+    }
+  }
 }
