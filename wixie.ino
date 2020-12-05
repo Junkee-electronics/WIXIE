@@ -44,8 +44,7 @@ bool pm = false;
 bool repaena = false;
 bool repapm = false;
 
-//______________________________________________________________________
-
+// just to do the button checking and crap for enabling all the things that we need for the further functions.
 void state() {
     RFRSH = millis();
     holdtime = millis();
@@ -53,7 +52,7 @@ void state() {
     set = true;
 }
 
-//______________________________________________________________________
+// mostly setting up I/O and internal timers and
 
 void setup() {
 
@@ -122,19 +121,19 @@ ISR(TIMER1_COMPA_vect){
 }
 
 //______________________________________________________________________
-//timer1 interrupt 500Hz
+//timer1 interrupt 500Hz,  basically does display multiplexing.
 
 ISR(TIMER0_COMPA_vect){
   if (call){
     if (oneother){
-      PORTD &= 0b00000111;
+      PORTD &= 0b00001111;
       PORTB &= 0b11000000;
       PORTB |= 0b00000001;
       PORTD = PORTD | minor;
       oneother = false;
     }
     else{
-      PORTD &= 0b00000101;
+      PORTD &= 0b00001111;
       PORTB &= 0b11000000;
       PORTB |= 0b00000010;
       PORTD = PORTD | major;
@@ -142,7 +141,7 @@ ISR(TIMER0_COMPA_vect){
     }
   }
   else {
-     PORTD &= 0b00000111;
+     PORTD &= 0b00001111;
      PORTB &= 0b11000000;
   }
 }
@@ -166,6 +165,7 @@ void loop() {
   }
 */
 
+// debuging shit, to be left out in the final version, for now, the program only takes like 3600 btes, so no sweat for now
 /*
   Serial.print("sec");
   Serial.print(sec);
@@ -246,7 +246,7 @@ void loop() {
             else cyclep = 24;
           convert(cyclep);
           break;
-//setting for repeating alarm.
+//setting for repetitive alarm.
           case 7:
             adjuster(repamin);
             convert(repamin);
@@ -280,12 +280,13 @@ void loop() {
   if (batt > 0) ena = true;
   else ena = false;
 
-// separation of digit one and two, bitshifting them to the left. now take it back now ya'll
   if (hold){
     convert(batt);    
   }
 
   manager();
+
+  // displays each thingy-o after .5 seconds. dependent on ok state of the battery. preety modular if you want to add some more.
   if (ena){
     if ((millis() - RFRSH)<500) convert(sec);
     if (500<=(millis() - RFRSH)<1000) convert(min);
@@ -313,7 +314,7 @@ void holder(){
   }
 }
 
-//converts double digits to single digits and splits them according to what should be displayed now
+// separation of digit one and two, bitshifting them to the left. now take it back now ya'll
 void convert(uint8_t vale){
   minor = (vale % 10) << 4;
   major = ((int) vale / 10) << 4;
@@ -354,104 +355,62 @@ void manager(){
     repahr = 0;
   }
 
-  switch (month){
+switch (month){
   
+//31 days months
     case 1:
-      if (day == 32){
+    case 3:
+    case 5:
+    case 7:
+    case 8:
+    case 10:
+      if (day >= 32){   //Make sure you don't overflow accidentally
         day= 1;
         month++;
       }
     break;
-    
+
+//30 days months
+    case 4:
+    case 6:
+    case 9:
+    case 11:
+      if (day >= 31){
+        day= 1;
+        month++;
+      }
+    break;
+
+//December - EOY (end of the year)
+    case 12:
+      if (day >= 32){
+        day = 1;
+        month = 1;
+        year++;
+      }
+    break;
+
+//And last but not least - Mr. weird one - February
     case 2:
       if ((year % 4) == 0){
-        if (day == 30){
+        if (day >= 30){
           day= 1;
           month++;
         }
       }
       else{
-        if (day == 29){
+        if (day >= 29){
           day= 1;
           month++;
         }
-      }
-    break;
-
-    case 3:
-      if (day == 32){
-        day= 1;
-        month++;
-      }
-    break;
-
-    case 4:
-      if (day == 31){
-        day= 1;
-        month++;
-      }
-    break;
-    
-    case 5:
-      if (day == 32){
-        day= 1;
-        month++;
-      }
-    break;
-    
-    case 6:
-      if (day == 31){
-        day= 1;
-        month++;
-      }
-    break;
-
-    case 7:
-      if (day == 32){
-        day= 1;
-        month++;
-      }
-    break;
-
-    case 8:
-      if (day == 32){
-        day= 1;
-        month++;
-      }
-    break;
-
-    case 9:
-      if (day == 31){
-        day= 1;
-        month++;
-      }
-    break;
-    
-    case 10:
-      if (day == 32){
-        day= 1;
-        month++;
-      }
-    break;
-
-    case 11:
-      if (day == 31){
-        day= 1;
-        month++;
-      }
-    break;
-
-    case 12:
-      if (day == 32){
-        day = 1;
-        month = 1;
-        year++;
       }
     break;
   }
   year %= 100;
 }
 
+// manages procedural addition to a numerical value dependant on button press. doesn't work on bool values, or values not specified in manager().
+// good idea to call manager afterwards, to make sure you dont overflow or display a nonsensical value :)
 void adjuster(uint8_t val){
   holder();
   if (set){
@@ -461,17 +420,22 @@ void adjuster(uint8_t val){
   if (hold || lhold)RFRSH = millis() - 5000;
 }
 
+// just checks if sethr == hr etc, and does some shit in case of 12HR mode is active (i hate 12HR mode :\)
 void alarm(){
   if (repaena){
     if ((hr == repahr) && ((pm && repapm) || (!pm && !repapm))){
       if (min == repamin){
         repatime = millis();
         TIMSK0 &= (0 << OCIE0A);
+        // holds the program still while its in alarm active state, to exit, do anything with the button or wait like 2 minutes or smthng
         while (((millis() - repatime) < 120000) || !ena){
           if (millis() < buzz){
             repatime = millis();
             buzz = millis();
+            //makes sure the time doesnt go of the rails even while the alarm is active
+            manager();
           }
+          //fix if millis() overflows in the middle of the loop. yes the 2 min. timer for auto-alarm-dissable doesnt exactly line up, but whatevs :D
           if ((millis() - buzz) >= 1000){
             tone(buzzer, 120, 500);
             buzz = millis();
