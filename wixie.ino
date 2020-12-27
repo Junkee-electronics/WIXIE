@@ -26,6 +26,7 @@ uint8_t major;
 uint8_t batt;
 
 int unsigned battstate;
+int unsigned showtime = 500;
 
 long unsigned trigger;
 long unsigned RFRSH = 0;
@@ -43,6 +44,7 @@ bool cycle = false;
 bool pm = false;
 bool repaena = false;
 bool repapm = false;
+bool battalarm = false;
 
 // just to do the button checking and crap for enabling all the things that we need for the further functions.
 void state() {
@@ -67,13 +69,13 @@ void setup() {
   pinMode(buzzer, OUTPUT);
   pinMode(bttn, INPUT_PULLUP);
 
-//  rtc.begin();
+  //rtc.begin();
 
   cli();//stop interrupts
 
   attachInterrupt(digitalPinToInterrupt(bttn), state, FALLING);
 
-//set timer0 interrupt at 500Hz
+  //set timer0 interrupt at 500Hz
   TCCR0A = 0;// set entire TCCR0A register to 0
   TCCR0B = 0;// same for TCCR0B
   TCNT0  = 0;//initialize counter value to 0
@@ -86,7 +88,7 @@ void setup() {
   // enable timer compare interrupt
   TIMSK0 |= (1 << OCIE0A);
 
-//set timer1 interrupt at 1Hz
+  //set timer1 interrupt at 1Hz
   TCCR1A = 0;// set entire TCCR1A register to 0
   TCCR1B = 0;// same for TCCR1B
   TCNT1  = 0;//initialize counter value to 0
@@ -99,7 +101,7 @@ void setup() {
   // enable timer compare interrupt
   TIMSK1 |= (1 << OCIE1A);
 
-/*
+  /*
   DateTime now = rtc.now();
   sec = now.second();
   min = now.minute();
@@ -108,7 +110,7 @@ void setup() {
   month = now.month();
   year = now.year();
   trigger = millis();
-*/
+  */
 
   sei();//allow interrupts
 }
@@ -205,9 +207,20 @@ void loop() {
 
   holder();
   
+  //had to add some conditions to make sure it isn't triggered while the button is still pressed.
+  if (hold && digitalRead(bttn)){
+    convert(batt);
+    while ((millis() - RFRSH) < showtime){
+      call = true;  
+    }
+    call = false
+  }
+  
+  //here i dont care about the concept of time anymore. nothing matters anymore. there are just settings. so many settings...
   if (lhold){
     RFRSH = millis();
-    for (uint8_t i = 0; i < 9; i++){
+    showtime /= 10;
+    for (uint8_t i = 0; i < 10; i++){
       while ((millis() - RFRSH)<=5000){
         switch (i){
           case 0:
@@ -236,7 +249,7 @@ void loop() {
             adjuster(year);
             convert(year);
           break;
-//this grade A bullshit is just because of 12/24 hr cycle
+          //this grade A bullshit is just because of 12/24 hr cycle
           case 6:
             if (set){
               cycle != cycle;
@@ -246,29 +259,35 @@ void loop() {
             else cyclep = 24;
           convert(cyclep);
           break;
-//setting for repetitive alarm.
+          //this is for adjustin display on time for each digit
           case 7:
+            adjuster(showtime);
+            convert(showtime);
+          break;
+          //setting for repetitive alarm.
+          case 8:
             adjuster(repamin);
             convert(repamin);
           break;
-          case 8:
+          case 9:
             adjuster(repahr);
-            if (repahr >= 12) repapm = true;
-            else repapm = false;
+            if (repahr >= 12) repapm !=;
+            else repapm !=;
             convert(repahr);
           break;
-          case 9:
+          case 10:
             if (set){
               repaena != repaena;
               set = false;
             }            
             convert(repaena);
           break;
+          }
+        manager();
         }
-      manager();
       }
-    }
-//  rtc.adjust(DateTime((year + 2000), month, day, hr, min, sec));
+    showtime *= 10;
+    //rtc.adjust(DateTime((year + 2000), month, day, hr, min, sec));
   }
 
   alarm();
@@ -280,20 +299,19 @@ void loop() {
   if (batt > 0) ena = true;
   else ena = false;
 
-  if (hold){
-    convert(batt);    
+  if ((batt == 0) && ((battalarm - millis()) > 3600000)){
+    goto loudbeep;
   }
 
-  manager();
-
-  // displays each thingy-o after .5 seconds. dependent on ok state of the battery. preety modular if you want to add some more.
-  if (ena){
-    if ((millis() - RFRSH)<500) convert(sec);
-    if (500<=(millis() - RFRSH)<1000) convert(min);
-    if (1000<=(millis() - RFRSH)<1500) convert(hr);
-    if (1500<=(millis() - RFRSH)<2000) convert(day);
-    if (2000<=(millis() - RFRSH)<2500) convert(month);
-    if (2500<=(millis() - RFRSH)<3000) convert(year);
+  // displays each thingy-o after set time. dependent on ok state of the battery. preety modular if you want to add some more.
+  if (ena && call && !hold){
+    manager();
+    if ((millis() - RFRSH)<showtime) convert(sec);
+    if ((showtime*10)<=(millis() - RFRSH)<(showtime*20)) convert(min);
+    if ((showtime*20)<=(millis() - RFRSH)<(showtime*30)) convert(hr);
+    if ((showtime*30)<=(millis() - RFRSH)<(showtime*40)) convert(day);
+    if ((showtime*40)<=(millis() - RFRSH)<(showtime*50)) convert(month);
+    if ((showtime*50)<=(millis() - RFRSH)<(showtime*60)) convert(year);
   }
   else call = false;
 }
@@ -322,6 +340,10 @@ void convert(uint8_t vale){
 
 // do some computing for time management, like 60 secs in minute, 60 of them in hour, 12/24 hr. cycle etc.
 void manager(){  
+
+  if (showtime >= 80){
+    showtime = 80;
+  }
 
   if (sec >= 60){
     sec = 0;
@@ -355,42 +377,42 @@ void manager(){
     repahr = 0;
   }
 
-switch (month){
-  
-//31 days months
-    case 1:
-    case 3:
-    case 5:
-    case 7:
-    case 8:
-    case 10:
-      if (day >= 32){   //Make sure you don't overflow accidentally
-        day= 1;
-        month++;
-      }
-    break;
+  switch (month){
+    
+  //31 days months
+      case 1:
+      case 3:
+      case 5:
+      case 7:
+      case 8:
+      case 10:
+        if (day >= 32){   //Make sure you don't overflow accidentally
+          day= 1;
+          month++;
+        }
+      break;
 
-//30 days months
-    case 4:
-    case 6:
-    case 9:
-    case 11:
-      if (day >= 31){
-        day= 1;
-        month++;
-      }
-    break;
+  //30 days months
+      case 4:
+      case 6:
+      case 9:
+      case 11:
+        if (day >= 31){
+          day= 1;
+          month++;
+        }
+      break;
 
-//December - EOY (end of the year)
-    case 12:
-      if (day >= 32){
-        day = 1;
-        month = 1;
-        year++;
-      }
-    break;
+  //December - EOY (end of the year)
+      case 12:
+        if (day >= 32){
+          day = 1;
+          month = 1;
+          year++;
+        }
+      break;
 
-//And last but not least - Mr. weird one - February
+  //And last but not least - Mr. weird one - February
     case 2:
       if ((year % 4) == 0){
         if (day >= 30){
@@ -425,6 +447,7 @@ void alarm(){
   if (repaena){
     if ((hr == repahr) && ((pm && repapm) || (!pm && !repapm))){
       if (min == repamin){
+        loudbeep:
         repatime = millis();
         TIMSK0 &= (0 << OCIE0A);
         // holds the program still while its in alarm active state, to exit, do anything with the button or wait like 2 minutes or smthng
@@ -450,6 +473,7 @@ void alarm(){
         TCCR0A |= (1 << WGM01);
         TCCR0B |= (1 << CS02);   
         TIMSK0 |= (1 << OCIE0A);
+        battalarm = millis();
       }
     }
   }
